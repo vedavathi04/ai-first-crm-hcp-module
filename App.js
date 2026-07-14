@@ -1,118 +1,239 @@
 import React, { useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { logStart, logSuccess, logFailure } from './store/interactionSlice';
 
 function App() {
-  const dispatch = useDispatch();
-  const logs = useSelector((state) => state.interactions.logs);
-  
-  const [hcpId, setHcpId] = useState('HCP-00234');
-  const [notes, setNotes] = useState('');
-  const [chatInput, setChatInput] = useState('');
-  const [messages, setMessages] = useState([
-    { role: 'assistant', text: 'Welcome! Share your interaction summary or type a specific tool command (log, edit, compliance, schedule, profile).' }
+  // Left Side Form Controlled States
+  const [hcpName, setHcpName] = useState('');
+  const [interactionType, setInteractionType] = useState('Meeting');
+  const [date, setDate] = useState('2025-04-19');
+  const [time, setTime] = useState('19:36');
+  const [attendees, setAttendees] = useState('');
+  const [topicsDiscussed, setTopicsDiscussed] = useState('');
+  const [outcomes, setOutcomes] = useState('');
+  const [followUpActions, setFollowUpActions] = useState('');
+  const [sentiment, setSentiment] = useState('Neutral');
+  const [followUps, setFollowUps] = useState([
+    '+ Schedule follow-up meeting in 2 weeks',
+    '+ Send OncoBoost Phase III PDF',
+    '+ Add Dr. Sharma to advisory board invite list'
   ]);
-  const [isChatMode, setIsChatMode] = useState(true);
 
-  const sendToAI = async (textInput) => {
-    dispatch(logStart());
+  const [chatInput, setChatInput] = useState('');
+  const [chatLogs, setChatLogs] = useState([]);
+
+  const handleLogSubmit = async () => {
+    if (!chatInput.trim()) return;
+    const userMessage = chatInput;
+    setChatInput('');
+
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/hcp/interaction', {
+      const response = await fetch('http://localhost:8000/api/hcp/interaction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: textInput, hcp_id: hcpId })
+        body: JSON.stringify({ message: userMessage, hcp_id: "HCP-00234" })
       });
       const data = await response.json();
-      
-      const newLog = {
-        id: Date.now(),
-        hcpId: hcpId,
-        notes: data.response || "No text payload returned from backend.",
-        timestamp: new Date().toLocaleTimeString()
-      };
-      
-      dispatch(logSuccess(newLog));
-      return data.response;
-    } catch (err) {
-      dispatch(logFailure(err.message));
-      return 'API Communication failure. Verify your FastAPI server is active.';
+
+      if (data.extracted_data) {
+        const ext = data.extracted_data;
+        if (ext.hcp_name) setHcpName(ext.hcp_name);
+        if (ext.topics_discussed) setTopicsDiscussed(ext.topics_discussed);
+        if (ext.sentiment) setSentiment(ext.sentiment);
+        if (ext.follow_ups) setFollowUps(ext.follow_ups);
+        if (ext.interaction_type) setInteractionType(ext.interaction_type);
+        if (ext.date) setDate(ext.date);
+        if (ext.time) setTime(ext.time);
+        
+        // Dynamic mappings for the requested fields from the AI response
+        if (ext.attendees) setAttendees(ext.attendees);
+        if (ext.outcomes) setOutcomes(ext.outcomes);
+        if (ext.follow_up_actions) setFollowUpActions(ext.follow_up_actions);
+      }
+
+      setChatLogs(prev => [...prev, { user: userMessage, ai: data.response }]);
+    } catch (error) {
+      setChatLogs(prev => [...prev, { user: userMessage, ai: "Connection Error: Please verify your FastAPI backend server window is open and running." }]);
     }
   };
 
-  const handleFormSubmit = async (e) => {
-    e.preventDefault();
-    if (!notes.trim()) return;
-    await sendToAI(notes);
-    setNotes('');
-  };
-
-  const handleChatSubmit = async () => {
-    if (!chatInput.trim()) return;
-    const userText = chatInput;
-    setMessages(prev => [...prev, { role: 'user', text: userText }]);
-    setChatInput('');
-    
-    const aiResponse = await sendToAI(userText);
-    setMessages(prev => [...prev, { role: 'assistant', text: aiResponse }]);
-  };
-
   return (
-    <div style={{ fontFamily: 'Inter, sans-serif', padding: '32px', backgroundColor: '#f3f4f6', minHeight: '100vh' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #e5e7eb', paddingBottom: '16px', marginBottom: '24px' }}>
-        <h2 style={{ color: '#4f46e5', margin: 0 }}>🤖 AI-First HCP CRM Dashboard</h2>
-        <button 
-          onClick={() => setIsChatMode(!isChatMode)}
-          style={{ padding: '10px 20px', background: '#4f46e5', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '500' }}
-        >
-          Toggle to {isChatMode ? 'Structured Form View' : 'Conversational Chat View'}
-        </button>
-      </header>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
-        {/* Left Side: Input Workspace */}
-        <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-          <h3 style={{ marginTop: 0, color: '#1f2937' }}>Logging Node Workspace (HCP: {hcpId})</h3>
+    <div style={{ fontFamily: '"Inter", sans-serif', padding: '20px', backgroundColor: '#f4f6f8', height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <h2 style={{ fontSize: '22px', fontWeight: '600', color: '#0f172a', margin: '0 0 20px 0', flexShrink: 0 }}>Log HCP Interaction</h2>
+      
+      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '24px', flex: 1, minHeight: 0 }}>
+        
+        {/* LEFT PANEL: Unlocked Scrollable Form View Area */}
+        <div style={{ background: '#fff', padding: '24px', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '16px', height: '100%', overflowY: 'auto' }}>
+          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#1e293b' }}>Interaction Details</h3>
           
-          {isChatMode ? (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div>
-              <div style={{ height: '350px', overflowY: 'auto', border: '1px solid #e5e7eb', padding: '16px', borderRadius: '8px', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: '#fafafa' }}>
-                {messages.map((m, i) => (
-                  <div key={i} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', background: m.role === 'user' ? '#4f46e5' : '#e5e7eb', color: m.role === 'user' ? '#fff' : '#1f2937', padding: '12px 16px', borderRadius: '8px', maxWidth: '80%', fontSize: '0.95rem', lineHeight: '1.4' }}>
-                    {m.text}
-                  </div>
-                ))}
-              </div>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <input style={{ flex: 1, padding: '12px', borderRadius: '6px', border: '1px solid #e5e7eb', fontSize: '1rem' }} value={chatInput} onChange={e => setChatInput(e.target.value)} placeholder="Type interaction details or commands..." />
-                <button style={{ padding: '12px 24px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '500' }} onClick={handleChatSubmit}>Send</button>
-              </div>
+              <label style={{ display: 'block', fontWeight: '500', marginBottom: '6px', fontSize: '13px', color: '#334155' }}>HCP Name</label>
+              <input 
+                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none' }} 
+                value={hcpName} 
+                onChange={(e) => setHcpName(e.target.value)} 
+                placeholder="Search or select HCP..." 
+              />
             </div>
-          ) : (
-            <form onSubmit={handleFormSubmit}>
-              <label style={{ display: 'block', fontWeight: 600, marginBottom: '8px', color: '#4b5563' }}>Form Field Input Summary:</label>
-              <textarea style={{ width: '100%', height: '200px', padding: '12px', borderRadius: '6px', border: '1px solid #e5e7eb', fontSize: '1rem', resize: 'none' }} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Submit formal interaction logs directly to SQL database..." />
-              <button type="submit" style={{ marginTop: '16px', padding: '12px 24px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '6px', width: '100%', cursor: 'pointer', fontWeight: '500' }}>Save Interaction</button>
-            </form>
-          )}
-        </div>
+            <div>
+              <label style={{ display: 'block', fontWeight: '500', marginBottom: '6px', fontSize: '13px', color: '#334155' }}>Interaction Type</label>
+              <select 
+                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#fff', fontSize: '13px', outline: 'none' }} 
+                value={interactionType} 
+                onChange={(e) => setInteractionType(e.target.value)}
+              >
+                <option value="Meeting">Meeting</option>
+                <option value="Call">Call</option>
+                <option value="Email">Email</option>
+              </select>
+            </div>
+          </div>
 
-        {/* Right Side: Redux Logs Panel */}
-        <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-          <h3 style={{ marginTop: 0, color: '#1f2937' }}>State Registry Output Logs (Redux Verified)</h3>
-          {logs.length === 0 ? <p style={{ color: '#9ca3af' }}>No operational logs stored in active pipeline session.</p> : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '430px', overflowY: 'auto' }}>
-              {logs.map(log => (
-                <div key={log.id} style={{ border: '1px solid #e5e7eb', padding: '16px', borderRadius: '8px', background: '#f9fafb' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#6b7280', marginBottom: '6px' }}>
-                    <strong>Target: {log.hcpId}</strong>
-                    <span>{log.timestamp}</span>
-                  </div>
-                  <p style={{ margin: 0, fontSize: '0.95rem', color: '#374151', lineHeight: '1.4' }}>{log.notes}</p>
-                </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div>
+              <label style={{ display: 'block', fontWeight: '500', marginBottom: '6px', fontSize: '13px', color: '#334155' }}>Date</label>
+              <input 
+                type="text" 
+                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none' }} 
+                value={date} 
+                onChange={(e) => setDate(e.target.value)} 
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontWeight: '500', marginBottom: '6px', fontSize: '13px', color: '#334155' }}>Time</label>
+              <input 
+                type="text" 
+                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none' }} 
+                value={time} 
+                onChange={(e) => setTime(e.target.value)} 
+              />
+            </div>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontWeight: '500', marginBottom: '6px', fontSize: '13px', color: '#334155' }}>Attendees</label>
+            <input 
+              style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none' }} 
+              value={attendees} 
+              onChange={(e) => setAttendees(e.target.value)} 
+              placeholder="Enter names or search..." 
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontWeight: '500', marginBottom: '6px', fontSize: '13px', color: '#334155' }}>Topics Discussed</label>
+            <textarea 
+              style={{ width: '100%', height: '80px', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', resize: 'none', fontSize: '13px', outline: 'none' }} 
+              value={topicsDiscussed} 
+              onChange={(e) => setTopicsDiscussed(e.target.value)} 
+              placeholder="Enter key discussion points..." 
+            />
+          </div>
+
+          <button style={{ alignSelf: 'flex-start', padding: '8px 16px', border: '1px solid #cbd5e1', borderRadius: '6px', backgroundColor: '#f8fafc', fontSize: '13px', color: '#475569', cursor: 'pointer' }}>
+            ✨ Summarize from Voice Note (Requires Consent)
+          </button>
+
+          <div>
+            <label style={{ display: 'block', fontWeight: '500', marginBottom: '4px', fontSize: '13px', color: '#334155' }}>Materials Shared / Samples Distributed</label>
+            <div style={{ padding: '12px', border: '1px solid #e2e8f0', borderRadius: '6px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '13px', color: '#64748b' }}>Materials Shared (No materials added)</span>
+              <button style={{ padding: '6px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', backgroundColor: '#fff', fontSize: '12px', cursor: 'pointer' }}>🔍 Search/Add</button>
+            </div>
+            <div style={{ padding: '12px', border: '1px solid #e2e8f0', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '13px', color: '#64748b' }}>Samples Distributed (No samples added)</span>
+              <button style={{ padding: '6px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', backgroundColor: '#fff', fontSize: '12px', cursor: 'pointer' }}>📦 Add Sample</button>
+            </div>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontWeight: '500', marginBottom: '6px', fontSize: '13px', color: '#334155' }}>Observed/Inferred HCP Sentiment</label>
+            <div style={{ display: 'flex', gap: '20px' }}>
+              {['Positive', 'Neutral', 'Negative'].map((s) => (
+                <label key={s} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#334155', cursor: 'pointer' }}>
+                  <input 
+                    type="radio" 
+                    name="sentiment" 
+                    value={s}
+                    checked={sentiment === s} 
+                    onChange={() => setSentiment(s)} 
+                  /> {s}
+                </label>
               ))}
             </div>
-          )}
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontWeight: '500', marginBottom: '6px', fontSize: '13px', color: '#334155' }}>Outcomes</label>
+            <textarea 
+              style={{ width: '100%', height: '60px', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', resize: 'none', fontSize: '13px', outline: 'none' }} 
+              value={outcomes} 
+              onChange={(e) => setOutcomes(e.target.value)} 
+              placeholder="Key outcomes or agreements..." 
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontWeight: '500', marginBottom: '6px', fontSize: '13px', color: '#334155' }}>Follow-up Actions</label>
+            <textarea 
+              style={{ width: '100%', height: '60px', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', resize: 'none', fontSize: '13px', outline: 'none' }} 
+              value={followUpActions} 
+              onChange={(e) => setFollowUpActions(e.target.value)} 
+              placeholder="Enter next steps or tasks..." 
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontWeight: '600', marginBottom: '6px', fontSize: '12px', color: '#475569' }}>AI Suggested Follow-ups:</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {followUps.map((f, idx) => (
+                <span key={idx} style={{ fontSize: '13px', color: '#2563eb', cursor: 'pointer' }}>{f}</span>
+              ))}
+            </div>
+          </div>
         </div>
+
+        {/* RIGHT PANEL: Fixed AI Assistant Sidebar */}
+        <div style={{ background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <div style={{ padding: '16px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
+            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '600', color: '#1e293b' }}>🌐 AI Assistant</h3>
+            <span style={{ fontSize: '12px', color: '#64748b' }}>Log interaction via chat</span>
+          </div>
+
+          <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: '#f8fafc', flex: 1, overflowY: 'auto' }}>
+            <div style={{ backgroundColor: '#fff', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', color: '#475569', lineHeight: '1.5' }}>
+              Log interaction details here (e.g., "Met Dr. Smith, discussed Product X efficacy, positive sentiment, shared brochure") or ask for help.
+            </div>
+
+            {chatLogs.map((log, index) => (
+              <div key={index} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ alignSelf: 'flex-end', backgroundColor: '#2563eb', color: '#fff', padding: '10px 14px', borderRadius: '8px', fontSize: '13px', maxWidth: '85%' }}>
+                  {log.user}
+                </div>
+                <div style={{ alignSelf: 'flex-start', backgroundColor: '#e2e8f0', color: '#1e293b', padding: '10px 14px', borderRadius: '8px', fontSize: '13px', maxWidth: '85%', fontWeight: '500' }}>
+                  {log.ai}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ padding: '16px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '8px', backgroundColor: '#fff', borderRadius: '0 0 8px 8px', flexShrink: 0 }}>
+            <input 
+              style={{ flex: 1, padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none' }} 
+              value={chatInput} 
+              onChange={e => setChatInput(e.target.value)} 
+              placeholder="Describe interaction..." 
+              onKeyDown={e => e.key === 'Enter' && handleLogSubmit()} 
+            />
+            <button 
+              style={{ backgroundColor: '#64748b', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}
+              onClick={handleLogSubmit}
+            >
+              Log
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
   );
